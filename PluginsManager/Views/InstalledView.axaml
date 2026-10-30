@@ -1,0 +1,128 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PluginsManager.ViewModels"
+             x:Class="PluginsManager.Views.InstalledView"
+             x:DataType="vm:InstalledViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="ListBox.rows ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderBrush" Value="#2B2B2B" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
+    <Style Selector="ListBox.rows ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#2A2D2E" />
+    </Style>
+    <Style Selector="Grid.row.disabled TextBlock.name">
+      <Setter Property="Foreground" Value="{StaticResource FgMuted}" />
+      <Setter Property="TextDecorations" Value="Strikethrough" />
+    </Style>
+    <Style Selector="Grid.header > TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource FgMuted}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.icon-btn">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,4" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="20,16,20,10">
+
+    <!-- Header -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <TextBox Width="190" Watermark="Filter by name..." Text="{Binding SearchText}" />
+        <ComboBox Width="200" ItemsSource="{Binding LocationFilters}" SelectedItem="{Binding SelectedLocationFilter}" />
+        <Button ToolTip.Tip="Rescan plugin folders" Command="{Binding RefreshCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="icon" Text="&#xE72C;" FontSize="12" />
+            <TextBlock Text="Refresh" />
+          </StackPanel>
+        </Button>
+        <Button ToolTip.Tip="Remove the Windows download block (Zone.Identifier) from all listed plugins" Command="{Binding UnblockAllCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="icon" Text="&#xE785;" FontSize="12" />
+            <TextBlock Text="Unblock all" />
+          </StackPanel>
+        </Button>
+        <Button ToolTip.Tip="Open the selected plugin folder in Explorer" Command="{Binding OpenLocationCommand}">
+          <TextBlock Classes="icon" Text="&#xE838;" FontSize="12" />
+        </Button>
+      </StackPanel>
+      <StackPanel Spacing="2">
+        <TextBlock Classes="h1" Text="Installed Plugins" />
+        <TextBlock Classes="muted mono small" Text="{Binding SummaryText}" />
+      </StackPanel>
+    </DockPanel>
+
+    <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="2" MinHeight="2" IsVisible="{Binding IsScanning}" />
+
+    <!-- Column header -->
+    <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,6">
+      <Grid Classes="header" ColumnDefinitions="28,*,110,190,170,316">
+        <TextBlock Grid.Column="1" Text="NAME" />
+        <TextBlock Grid.Column="2" Text="VERSION" />
+        <TextBlock Grid.Column="3" Text="LOCATION" />
+        <TextBlock Grid.Column="4" Text="SOURCE" />
+        <TextBlock Grid.Column="5" Text="ACTIONS" HorizontalAlignment="Right" Margin="0,0,8,0" />
+      </Grid>
+    </Border>
+
+    <Grid>
+      <TextBlock IsVisible="{Binding IsEmpty}" Classes="muted" HorizontalAlignment="Center" Margin="0,40,0,0"
+                 Text="No plugins found. Check the folders in Settings or install one from Browse." />
+
+      <ListBox Classes="rows" ItemsSource="{Binding Items}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:InstalledPluginItem">
+            <Grid Classes="row" Classes.disabled="{Binding !IsEnabled}" ColumnDefinitions="28,*,110,190,170,316" MinHeight="46">
+
+              <Ellipse Grid.Column="0" Width="8" Height="8" HorizontalAlignment="Center"
+                       Fill="{StaticResource OkBrush}" IsVisible="{Binding IsEnabled}" ToolTip.Tip="Enabled" />
+              <Ellipse Grid.Column="0" Width="8" Height="8" HorizontalAlignment="Center"
+                       Fill="#6E7681" IsVisible="{Binding !IsEnabled}" ToolTip.Tip="Disabled" />
+
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="0,4">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Classes="name" Text="{Binding Name}" FontWeight="SemiBold" />
+                  <Border Classes="badge"><TextBlock Text="{Binding KindText}" /></Border>
+                  <Border Classes="badge" IsVisible="{Binding !IsEnabled}"><TextBlock Text="DISABLED" /></Border>
+                  <Border Classes="badge warn" IsVisible="{Binding IsBlocked}"
+                          ToolTip.Tip="Windows marked these files as downloaded from the internet. vatSys may refuse to load them until they are unblocked.">
+                    <TextBlock Text="{Binding BlockedText}" />
+                  </Border>
+                </StackPanel>
+                <TextBlock Classes="mono muted small" Text="{Binding DetailText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}" />
+              </StackPanel>
+
+              <TextBlock Grid.Column="2" Classes="mono" FontSize="12" VerticalAlignment="Center" Text="{Binding VersionText}" />
+              <TextBlock Grid.Column="3" FontSize="12" VerticalAlignment="Center" Text="{Binding LocationName}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="4" Classes="mono muted" FontSize="12" VerticalAlignment="Center" Text="{Binding SourceText}" TextTrimming="CharacterEllipsis" />
+
+              <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,6,0">
+                <Button Classes="accent" IsVisible="{Binding HasUpdate}" Content="{Binding UpdateText}" Command="{Binding UpdateCommand}" />
+                <Button IsVisible="{Binding IsBlocked}" Content="Unblock" Command="{Binding UnblockCommand}"
+                        ToolTip.Tip="Same as PowerShell Unblock-File" />
+                <Button Width="86" Command="{Binding ToggleCommand}" ToolTip.Tip="Disabled plugins have their DLLs renamed to *.dll.disabled">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="icon" Text="{Binding ToggleGlyph}" FontSize="11" />
+                    <TextBlock Text="{Binding ToggleText}" />
+                  </StackPanel>
+                </Button>
+                <Button Classes="icon-btn" ToolTip.Tip="Show in Explorer" Command="{Binding RevealCommand}">
+                  <TextBlock Classes="icon" Text="&#xE838;" FontSize="12" />
+                </Button>
+                <Button Classes="icon-btn danger" ToolTip.Tip="Remove plugin" Command="{Binding RemoveCommand}">
+                  <TextBlock Classes="icon" Text="&#xE74D;" FontSize="12" Foreground="{StaticResource DangerBrush}" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+  </DockPanel>
+</UserControl>

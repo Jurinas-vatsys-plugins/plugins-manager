@@ -1,0 +1,151 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PluginsManager.ViewModels"
+        xmlns:m="using:PluginsManager.Models"
+        x:Class="PluginsManager.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="vatSys Plugin Manager"
+        Icon="/Assets/vatSys.ico"
+        Width="1180" Height="760" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource BgEditor}"
+        FontSize="13">
+
+  <Window.Styles>
+    <Style Selector="ListBox.nav">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#37373D" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:selected Border.marker">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.log-Info">
+      <Setter Property="Foreground" Value="#9CDCFE" />
+    </Style>
+    <Style Selector="TextBlock.log-Success">
+      <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+    </Style>
+    <Style Selector="TextBlock.log-Warning">
+      <Setter Property="Foreground" Value="{StaticResource WarnBrush}" />
+    </Style>
+    <Style Selector="TextBlock.log-Error">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+    <!-- Manager update banner -->
+    <Border Grid.Row="0" IsVisible="{Binding IsManagerUpdateAvailable}"
+            Background="#3A3520" BorderBrush="{StaticResource WarnBrush}" BorderThickness="0,0,0,1" Padding="12,6">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+          <Button Classes="accent" Content="View release" Command="{Binding OpenManagerReleaseCommand}" />
+          <Button Classes="ghost" Content="Dismiss" Command="{Binding DismissManagerUpdateCommand}" />
+        </StackPanel>
+        <TextBlock Classes="icon" Text="&#xE7BA;" Foreground="{StaticResource WarnBrush}" Margin="0,0,8,0" />
+        <TextBlock Text="{Binding ManagerUpdateText}" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+
+    <!-- Sidebar + page -->
+    <Grid Grid.Row="1" ColumnDefinitions="210,*">
+      <Border Grid.Column="0" Background="{StaticResource BgSide}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Margin="16,16,16,14" Spacing="2">
+            <TextBlock Text="vatSys" FontSize="11" Classes="section" />
+            <TextBlock Text="Plugin Manager" FontSize="16" FontWeight="SemiBold" />
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Bottom" Margin="16,12" Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Width="8" Height="8" Fill="{StaticResource OkBrush}" IsVisible="{Binding S.IsVatSysRunning}" />
+              <Ellipse Width="8" Height="8" Fill="#5A5A5A" IsVisible="{Binding !S.IsVatSysRunning}" />
+              <TextBlock Classes="small muted" Text="vatSys running" IsVisible="{Binding S.IsVatSysRunning}" />
+              <TextBlock Classes="small muted" Text="vatSys not running" IsVisible="{Binding !S.IsVatSysRunning}" />
+            </StackPanel>
+            <Button Classes="link" FontSize="11" Content="github.com/Jurinas-vatsys-plugins"
+                    Command="{Binding Browse.OpenOrganizationCommand}" />
+          </StackPanel>
+
+          <ListBox Classes="nav" ItemsSource="{Binding NavItems}" SelectedItem="{Binding SelectedNav}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:NavItem">
+                <Grid ColumnDefinitions="3,Auto,*" Height="34">
+                  <Border Grid.Column="0" Classes="marker" Background="Transparent" />
+                  <TextBlock Grid.Column="1" Classes="icon" Text="{Binding Glyph}" FontSize="15" Margin="14,0,12,0" />
+                  <TextBlock Grid.Column="2" Text="{Binding Title}" VerticalAlignment="Center" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <ContentControl Grid.Column="1" Content="{Binding CurrentPage}" />
+    </Grid>
+
+    <!-- Output panel -->
+    <Border Grid.Row="2" Height="170" IsVisible="{Binding IsLogVisible}"
+            Background="{StaticResource BgPanel}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0">
+      <DockPanel>
+        <DockPanel DockPanel.Dock="Top" Margin="12,4,6,2">
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button Classes="ghost" ToolTip.Tip="Clear output" Command="{Binding ClearLogCommand}">
+              <TextBlock Classes="icon" Text="&#xE894;" FontSize="12" />
+            </Button>
+            <Button Classes="ghost" ToolTip.Tip="Hide panel" Command="{Binding ToggleLogCommand}">
+              <TextBlock Classes="icon" Text="&#xE711;" FontSize="12" />
+            </Button>
+          </StackPanel>
+          <TextBlock Classes="section" Text="OUTPUT" VerticalAlignment="Center" />
+        </DockPanel>
+        <ScrollViewer x:Name="LogScroller" Padding="12,0,12,6">
+          <ItemsControl ItemsSource="{Binding S.Log}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="m:LogEntry">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="mono muted small" Text="{Binding TimeText}" />
+                  <TextBlock Classes="mono small" Classes.log-Info="{Binding Level, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:LogLevel.Info}}"
+                             Classes.log-Success="{Binding Level, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:LogLevel.Success}}"
+                             Classes.log-Warning="{Binding Level, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:LogLevel.Warning}}"
+                             Classes.log-Error="{Binding Level, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static m:LogLevel.Error}}"
+                             Text="{Binding LevelText}" Width="58" />
+                  <SelectableTextBlock Classes="mono" FontSize="11" Text="{Binding Message}" TextWrapping="Wrap" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Status bar -->
+    <Border Grid.Row="3" Background="{StaticResource AccentBrush}" Height="24" Padding="10,0">
+      <DockPanel>
+        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="14">
+          <Button Classes="ghost" Padding="4,0" Foreground="White" Command="{Binding CheckManagerUpdateCommand}"
+                  ToolTip.Tip="Check for Plugin Manager updates">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Classes="icon" Text="&#xE895;" FontSize="11" />
+              <TextBlock FontSize="11" Text="{Binding VersionText}" />
+              <TextBlock FontSize="11" Text="{Binding ManagerStatusText}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="ghost" Padding="4,0" Foreground="White" Command="{Binding ToggleLogCommand}" ToolTip.Tip="Toggle output panel">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Classes="icon" Text="&#xE756;" FontSize="11" />
+              <TextBlock FontSize="11" Text="Output" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

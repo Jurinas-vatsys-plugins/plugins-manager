@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PluginsManager.ViewModels"
+             x:Class="PluginsManager.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="StackPanel.setting">
+      <Setter Property="Spacing" Value="4" />
+      <Setter Property="Margin" Value="0,0,0,16" />
+    </Style>
+    <Style Selector="StackPanel.setting > TextBlock.label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.ok">
+      <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+    </Style>
+    <Style Selector="TextBlock.bad">
+      <Setter Property="Foreground" Value="{StaticResource WarnBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="20,16,20,10">
+    <StackPanel DockPanel.Dock="Top" Spacing="2" Margin="0,0,0,14">
+      <TextBlock Classes="h1" Text="Settings" />
+      <TextBlock Classes="muted mono small" Text="{Binding DataDir, StringFormat='Stored in {0}'}" />
+    </StackPanel>
+
+    <!-- Action bar -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <Button Classes="accent" Content="Save" Command="{Binding SaveCommand}" Width="90" HorizontalContentAlignment="Center" />
+        <Button Content="Revert" Command="{Binding RevertCommand}" />
+        <Button Content="Reset to defaults" Command="{Binding ResetDefaultsCommand}" />
+        <Button Content="Open data folder" Command="{Binding OpenDataDirCommand}" />
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel MaxWidth="760" HorizontalAlignment="Left" Margin="0,0,16,0">
+
+        <TextBlock Classes="section" Text="PATHS" Margin="0,0,0,10" />
+
+        <StackPanel Classes="setting">
+          <TextBlock Classes="label" Text="vatSys installation folder" />
+          <TextBlock Classes="muted small" Text="Global plugins are installed to &lt;folder&gt;\bin\Plugins and load for every profile." />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse..." Margin="6,0,0,0" Command="{Binding BrowseInstallDirCommand}" />
+            <TextBox Classes="mono" FontFamily="{StaticResource MonoFont}" Text="{Binding VatSysInstallDir}" />
+          </DockPanel>
+          <TextBlock Classes="small ok" Text="{Binding InstallDirStatus}" IsVisible="{Binding InstallDirValid}" />
+          <TextBlock Classes="small bad" Text="{Binding InstallDirStatus}" IsVisible="{Binding !InstallDirValid}" />
+        </StackPanel>
+
+        <StackPanel Classes="setting">
+          <TextBlock Classes="label" Text="vatSys Files folder" />
+          <TextBlock Classes="muted small" Text="Profile plugins are installed to &lt;folder&gt;\Profiles\&lt;profile&gt;\Plugins." />
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse..." Margin="6,0,0,0" Command="{Binding BrowseFilesDirCommand}" />
+            <TextBox FontFamily="{StaticResource MonoFont}" Text="{Binding VatSysFilesDir}" />
+          </DockPanel>
+          <TextBlock Classes="small ok" Text="{Binding FilesDirStatus}" IsVisible="{Binding FilesDirValid}" />
+          <TextBlock Classes="small bad" Text="{Binding FilesDirStatus}" IsVisible="{Binding !FilesDirValid}" />
+        </StackPanel>
+
+        <TextBlock Classes="section" Text="INSTALLATION" Margin="0,8,0,10" />
+
+        <StackPanel Classes="setting">
+          <TextBlock Classes="label" Text="Default install location" />
+          <StackPanel Orientation="Horizontal" Spacing="16">
+            <RadioButton GroupName="defaultTarget" Content="vatSys directory" IsChecked="{Binding DefaultTargetIsGlobal}" />
+            <RadioButton GroupName="defaultTarget" Content="Profile" IsChecked="{Binding DefaultTargetIsProfile}" />
+            <ComboBox Width="220" ItemsSource="{Binding Profiles}" SelectedItem="{Binding DefaultProfile}"
+                      IsEnabled="{Binding DefaultTargetIsProfile}" PlaceholderText="Select profile" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Classes="setting">
+          <ToggleSwitch Content="Automatically unblock DLLs" IsChecked="{Binding AutoUnblock}" />
+          <TextBlock Classes="muted small" TextWrapping="Wrap"
+                     Text="Runs the equivalent of PowerShell Unblock-File on installed files and on every blocked DLL found in the plugin folders, so vatSys can load them." />
+        </StackPanel>
+
+        <StackPanel Classes="setting">
+          <ToggleSwitch Content="Move removed plugins to the Recycle Bin" IsChecked="{Binding UseRecycleBin}" />
+          <TextBlock Classes="muted small" Text="When off, removed plugins are deleted permanently." />
+        </StackPanel>
+
+        <TextBlock Classes="section" Text="UPDATES" Margin="0,8,0,10" />
+
+        <StackPanel Classes="setting">
+          <ToggleSwitch Content="Check for Plugin Manager updates on startup" IsChecked="{Binding CheckForUpdatesOnStartup}" />
+          <TextBlock Classes="muted small" TextWrapping="Wrap"
+                     Text="Plugin and update information comes from api.jurina.org (refreshed from GitHub every hour); files are downloaded from GitHub." />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

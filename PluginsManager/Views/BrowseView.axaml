@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PluginsManager.ViewModels"
+             x:Class="PluginsManager.Views.BrowseView"
+             x:DataType="vm:BrowseViewModel">
+
+  <DockPanel Margin="20,16,20,10">
+
+    <!-- Header -->
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <Button Command="{Binding RefreshCommand}" ToolTip.Tip="Reload repositories and releases from GitHub">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="icon" Text="&#xE72C;" FontSize="12" />
+            <TextBlock Text="Refresh" />
+          </StackPanel>
+        </Button>
+        <Button Command="{Binding OpenOrganizationCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="icon" Text="&#xE8A7;" FontSize="12" />
+            <TextBlock Text="Open on GitHub" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+      <StackPanel Spacing="2">
+        <TextBlock Classes="h1" Text="Browse Plugins" />
+        <TextBlock Classes="muted mono small" Text="github.com/orgs/Jurinas-vatsys-plugins/repositories" />
+      </StackPanel>
+    </DockPanel>
+
+    <!-- Install target -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource BgCard}" BorderBrush="{StaticResource LineBrush}"
+            BorderThickness="1" CornerRadius="3" Padding="14,10" Margin="0,0,0,12">
+      <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="16">
+          <TextBlock Classes="section" Text="INSTALL TO" VerticalAlignment="Center" />
+          <RadioButton GroupName="target" Content="vatSys directory (all profiles)" IsChecked="{Binding TargetIsGlobal}" />
+          <RadioButton GroupName="target" Content="Profile" IsChecked="{Binding TargetIsProfile}" />
+          <ComboBox Width="220" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}"
+                    IsEnabled="{Binding TargetIsProfile}" PlaceholderText="Select profile" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="icon muted" Text="&#xE8B7;" FontSize="11" />
+          <TextBlock Classes="mono muted small" Text="{Binding TargetPathText}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="2" MinHeight="2" IsVisible="{Binding S.IsCatalogLoading}" />
+
+    <Border DockPanel.Dock="Top" IsVisible="{Binding S.CatalogError, Converter={x:Static ObjectConverters.IsNotNull}}"
+            Background="#3A1D1D" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="3"
+            Padding="12,8" Margin="0,0,0,10">
+      <TextBlock Text="{Binding S.CatalogError}" TextWrapping="Wrap" />
+    </Border>
+
+    <Grid>
+      <TextBlock Classes="muted" HorizontalAlignment="Center" Margin="0,40,0,0" IsVisible="{Binding IsEmpty}"
+                 Text="No plugins available. Click Refresh to try again." />
+
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Items}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:RemotePluginItem">
+              <Border Background="{StaticResource BgCard}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+                      CornerRadius="3" Padding="14,10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                      <Border Classes="badge accent"><TextBlock Text="{Binding TagText}" /></Border>
+                      <Border Classes="badge warn" IsVisible="{Binding IsPrerelease}"><TextBlock Text="PRE-RELEASE" /></Border>
+                      <TextBlock Classes="muted small" Text="{Binding PublishedText}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Classes="icon muted" Text="&#xE7B8;" FontSize="11" />
+                      <TextBlock Classes="mono muted small" Text="{Binding AssetText}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Ellipse Width="7" Height="7" Fill="{StaticResource OkBrush}" IsVisible="{Binding IsInstalled}" />
+                      <Ellipse Width="7" Height="7" Fill="#5A5A5A" IsVisible="{Binding !IsInstalled}" />
+                      <TextBlock Classes="small" Text="{Binding InstalledText}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock IsVisible="{Binding HasError}" Text="{Binding ErrorText}" Foreground="{StaticResource DangerBrush}"
+                               Classes="small" TextWrapping="Wrap" />
+                  </StackPanel>
+
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6" Margin="16,0,0,0" Width="150">
+                    <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            IsEnabled="{Binding CanInstall}" Command="{Binding InstallCommand}" IsVisible="{Binding !IsBusy}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="icon" Text="&#xE896;" FontSize="12" />
+                        <TextBlock Text="Install" />
+                      </StackPanel>
+                    </Button>
+                    <ProgressBar IsVisible="{Binding IsBusy}" Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                      <Button Classes="link" FontSize="11" Content="Release notes" Command="{Binding OpenReleaseCommand}" />
+                      <Button Classes="link" FontSize="11" Content="Repository" Command="{Binding OpenRepoCommand}" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

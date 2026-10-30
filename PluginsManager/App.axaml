@@ -1,0 +1,121 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PluginsManager.ViewModels"
+             xmlns:views="using:PluginsManager.Views"
+             x:Class="PluginsManager.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.DataTemplates>
+    <DataTemplate DataType="vm:InstalledViewModel"><views:InstalledView /></DataTemplate>
+    <DataTemplate DataType="vm:BrowseViewModel"><views:BrowseView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel"><views:SettingsView /></DataTemplate>
+  </Application.DataTemplates>
+
+  <Application.Resources>
+    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
+    <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <SolidColorBrush x:Key="BgEditor" Color="#1E1E1E" />
+    <SolidColorBrush x:Key="BgSide" Color="#252526" />
+    <SolidColorBrush x:Key="BgPanel" Color="#181818" />
+    <SolidColorBrush x:Key="BgCard" Color="#252526" />
+    <SolidColorBrush x:Key="BgInput" Color="#313131" />
+    <SolidColorBrush x:Key="LineBrush" Color="#3C3C3C" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#007ACC" />
+    <SolidColorBrush x:Key="FgMuted" Color="#8B949E" />
+    <SolidColorBrush x:Key="OkBrush" Color="#4EC9B0" />
+    <SolidColorBrush x:Key="WarnBrush" Color="#CCA700" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#F14C4C" />
+    <SolidColorBrush x:Key="LinkBrush" Color="#3794FF" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme DensityStyle="Compact">
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark" Accent="#007ACC" RegionColor="#1E1E1E" AltHigh="#1E1E1E" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+
+    <Style Selector="TextBlock.mono">
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{StaticResource FgMuted}" />
+    </Style>
+    <Style Selector="TextBlock.small">
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.icon">
+      <Setter Property="FontFamily" Value="{StaticResource IconFont}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource FgMuted}" />
+      <Setter Property="LetterSpacing" Value="1" />
+    </Style>
+
+    <!-- Small uppercase pill used for tags such as DLL / FOLDER / BLOCKED. -->
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Padding" Value="5,0" />
+      <Setter Property="Background" Value="#33FFFFFF" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.badge > TextBlock">
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    </Style>
+    <Style Selector="Border.badge.warn">
+      <Setter Property="Background" Value="#4DCCA700" />
+    </Style>
+    <Style Selector="Border.badge.ok">
+      <Setter Property="Background" Value="#4D4EC9B0" />
+    </Style>
+    <Style Selector="Border.badge.accent">
+      <Setter Property="Background" Value="#66007ACC" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.accent">
+      <Setter Property="Background" Value="#0E639C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1177BB" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#A1260D" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="6,3" />
+    </Style>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource LinkBrush}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#6CB6FF" />
+    </Style>
+
+    <Style Selector="TextBox, ComboBox">
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </Application.Styles>
+</Application>
