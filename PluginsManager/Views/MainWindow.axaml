@@ -46,7 +46,8 @@
             Background="#3A3520" BorderBrush="{StaticResource WarnBrush}" BorderThickness="0,0,0,1" Padding="12,6">
       <DockPanel>
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-          <Button Classes="accent" Content="View release" Command="{Binding OpenManagerReleaseCommand}" />
+          <Button Classes="accent" Content="Update now" Command="{Binding UpdateManagerCommand}" />
+          <Button Content="View release" Command="{Binding OpenManagerReleaseCommand}" />
           <Button Classes="ghost" Content="Dismiss" Command="{Binding DismissManagerUpdateCommand}" />
         </StackPanel>
         <TextBlock Classes="icon" Text="&#xE7BA;" Foreground="{StaticResource WarnBrush}" Margin="0,0,8,0" />

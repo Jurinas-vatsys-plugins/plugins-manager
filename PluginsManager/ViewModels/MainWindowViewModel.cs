@@ -1,4 +1,7 @@
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
+using PluginsManager.Models;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PluginsManager.Services;
@@ -48,7 +51,12 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty] private bool _isManagerUpdateAvailable;
     [ObservableProperty] private string _managerUpdateText = "";
     [ObservableProperty] private string _managerStatusText = "";
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UpdateManagerCommand))]
+    private bool _isSelfUpdating;
+
     private string _managerReleaseUrl = GitHubService.ManagerUrl + "/releases";
+    private GhRelease? _managerRelease;
 
     public async Task InitializeAsync()
     {
@@ -76,6 +84,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
             }
 
             _managerReleaseUrl = latest.HtmlUrl;
+            _managerRelease = latest;
             if (VersionUtil.IsNewer(latest.TagName, AppInfo.Version))
             {
                 ManagerUpdateText = $"A new version of vatSys Plugin Manager is available: {latest.TagName} (you have v{AppInfo.Version}).";
@@ -93,6 +102,51 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             ManagerStatusText = "Update check failed";
             S.Error($"Update check failed: {ex.Message}");
+        }
+    }
+
+    private bool CanUpdateManager() => !IsSelfUpdating;
+
+    [RelayCommand(CanExecute = nameof(CanUpdateManager))]
+    private async Task UpdateManagerAsync()
+    {
+        if (_managerRelease is not { } release) return;
+        var asset = SelfUpdater.FindAsset(release);
+        if (asset is null || !SelfUpdater.IsSupported || SelfUpdater.ExePath is not { } exe)
+        {
+            S.Warn("This copy cannot update itself; download the new version from the release page.");
+            OpenManagerRelease();
+            return;
+        }
+
+        var confirmed = await DialogService.ConfirmAsync(
+            "Update vatSys Plugin Manager",
+            $"Update from v{AppInfo.Version} to {release.TagName}?\n\nThe new version is downloaded from GitHub and the app restarts.",
+            "Update and restart");
+        if (!confirmed) return;
+
+        IsSelfUpdating = true;
+        var banner = ManagerUpdateText;
+        try
+        {
+            S.Info($"Downloading vatSys Plugin Manager {release.TagName} ...");
+            await SelfUpdater.InstallAsync(S.GitHub, asset, exe,
+                new Progress<double>(p => ManagerUpdateText = $"Downloading {release.TagName} ... {p:P0}"));
+            S.Success($"Updated to {release.TagName}. Restarting ...");
+            SelfUpdater.Restart(exe);
+            (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            ManagerUpdateText = banner;
+            S.Error($"Self-update failed: {ex.Message}");
+            if (await DialogService.ConfirmAsync("Update failed",
+                    $"{ex.Message}\n\nOpen the release page to download the new version manually?", "Open release page"))
+                OpenManagerRelease();
+        }
+        finally
+        {
+            IsSelfUpdating = false;
         }
     }
 

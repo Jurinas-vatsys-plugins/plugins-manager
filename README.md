@@ -12,6 +12,7 @@ Get `vatSysPluginsManager.exe` from the [latest release](https://github.com/Juri
 - Recognises plugins installed by hand (by comparing DLLs with the release files) and shows when any copy has an update
 - Warns when the same plugin is enabled both in the vatSys folder and in a profile, since vatSys then loads it twice
 - Disable/enable plugins (renames DLLs to `*.dll.disabled`) and remove them, with a confirmation prompt
+- Updates itself: when a new release is out, **Update now** downloads it, swaps the exe and restarts
 - Unblocks plugin DLLs automatically (same as PowerShell `Unblock-File`), so vatSys can load downloaded files
 
 Plugin versions come from the Jurina API (`https://api.jurina.org/v1/vatsys-plugins/plugins`), which checks GitHub hourly. Files are downloaded directly from the GitHub releases.
