@@ -31,6 +31,43 @@ public sealed class InstalledPlugin
     public bool IsEnabled { get; init; }
     public int BlockedFiles { get; init; }
     public InstallRecord? Record { get; init; }
+
+    /// <summary>Plugin DLLs (not shared dependencies) by file name with ".disabled" stripped, mapped to their full path.</summary>
+    public IReadOnlyDictionary<string, string> PluginDlls { get; init; } = new Dictionary<string, string>();
+}
+
+public sealed class InstallResult
+{
+    public InstallRecord Record { get; set; } = new();
+
+    /// <summary>Old copies that were removed because the release installs under a different name.</summary>
+    public List<string> Replaced { get; } = [];
+
+    public List<string> Warnings { get; } = [];
+}
+
+/// <summary>What a release asset installs, cached so installed plugins can be matched without downloading again.</summary>
+public sealed class AssetIndexEntry
+{
+    public string Url { get; set; } = "";
+
+    /// <summary>Top-level files/folders the asset creates in a Plugins folder.</summary>
+    public List<string> Items { get; set; } = [];
+
+    /// <summary>Lower-case DLL file name -> SHA-256 (hex) of that DLL in the release.</summary>
+    public Dictionary<string, string> Dlls { get; set; } = [];
+}
+
+/// <summary>Result of comparing an installed plugin with the catalog and with the other plugin folders.</summary>
+public sealed class PluginStatus
+{
+    public RemotePlugin? Remote { get; init; }
+    public string? DisplayVersion { get; set; }
+    public bool HasUpdate { get; set; }
+    public bool IsLatest { get; set; }
+
+    /// <summary>Enabled copies of the same plugin in the other scope (vatSys directory vs. a profile); vatSys loads both.</summary>
+    public List<InstalledPlugin> Duplicates { get; } = [];
 }
 
 public enum LogLevel

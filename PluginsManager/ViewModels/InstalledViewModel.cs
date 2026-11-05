@@ -29,6 +29,8 @@ public sealed partial class InstalledViewModel : ViewModelBase
     [ObservableProperty] private string _summaryText = "";
     [ObservableProperty] private bool _isEmpty = true;
     [ObservableProperty] private bool _isScanning;
+    [ObservableProperty] private bool _hasDuplicates;
+    [ObservableProperty] private string _duplicateText = "";
 
     partial void OnSelectedLocationFilterChanged(string? value) => ApplyFilter();
     partial void OnSearchTextChanged(string value) => ApplyFilter();
@@ -46,7 +48,7 @@ public sealed partial class InstalledViewModel : ViewModelBase
             SelectedLocationFilter = selected is not null && names.Contains(selected) ? selected : AllLocations;
         }
 
-        _all = _s.Installed.Select(p => new InstalledPluginItem(p, _s.MatchRemote(p), this)).ToList();
+        _all = _s.Installed.Select(p => new InstalledPluginItem(p, _s.Status(p), this)).ToList();
         ApplyFilter();
     }
 
@@ -69,6 +71,16 @@ public sealed partial class InstalledViewModel : ViewModelBase
         var blocked = visible.Count(i => i.IsBlocked);
         var updates = visible.Count(i => i.HasUpdate);
         SummaryText = $"{visible.Count} plugin(s) · {disabled} disabled · {blocked} blocked · {updates} update(s)";
+
+        // Counted over all locations, so the warning stays visible whatever filter is selected.
+        var duplicated = _all.Where(i => i.IsDuplicate && i.Model.Location.IsGlobal).ToList();
+        HasDuplicates = duplicated.Count > 0;
+        DuplicateText = HasDuplicates
+            ? $"{duplicated.Count} plugin(s) in the vatSys directory are also installed in a profile: "
+              + string.Join(", ", duplicated.Select(d => d.Name))
+              + ". vatSys loads both copies in those profiles, which can cause duplicate windows, menu items or errors. "
+              + "Remove or disable one copy."
+            : "";
     }
 
     [RelayCommand]
@@ -108,8 +120,21 @@ public sealed partial class InstalledViewModel : ViewModelBase
 
     internal async Task ToggleAsync(InstalledPluginItem item)
     {
-        if (!await _s.ConfirmIfVatSysRunningAsync()) return;
         var enable = !item.IsEnabled;
+        if (enable && _s.ConflictsFor(item.Model) is { Count: > 0 } conflicts)
+        {
+            var where = string.Join("\n", conflicts.Select(c => $"  {c.Location.Name}: {c.Path}"));
+            var ok = await DialogService.ConfirmAsync(
+                "Plugin already active",
+                $"{item.Name} is also enabled here:\n\n{where}\n\n"
+                + (item.Model.Location.IsGlobal
+                    ? "The vatSys directory loads for every profile, so vatSys would load the plugin twice in those profiles."
+                    : "That copy loads for every profile, so vatSys would load the plugin twice in this profile.")
+                + "\n\nEnable anyway?",
+                "Enable anyway");
+            if (!ok) return;
+        }
+        if (!await _s.ConfirmIfVatSysRunningAsync()) return;
         try
         {
             _s.Plugins.SetEnabled(item.Model, enable);
@@ -122,29 +147,7 @@ public sealed partial class InstalledViewModel : ViewModelBase
         await RefreshAsync();
     }
 
-    internal async Task RemoveAsync(InstalledPluginItem item)
-    {
-        var where = _s.Settings.UseRecycleBin
-            ? "The files will be moved to the Recycle Bin."
-            : "The files will be permanently deleted.";
-        var confirmed = await DialogService.ConfirmAsync(
-            "Remove plugin",
-            $"Remove \"{item.Name}\" from {item.LocationName}?\n\n{item.Path}\n\n{where}",
-            "Remove",
-            danger: true);
-        if (!confirmed || !await _s.ConfirmIfVatSysRunningAsync()) return;
-
-        try
-        {
-            await Task.Run(() => _s.Plugins.Remove(item.Model));
-            _s.Success($"Removed {item.Name} from {item.LocationName}.");
-        }
-        catch (Exception ex)
-        {
-            _s.Error($"Could not remove {item.Name}: {ex.Message}");
-        }
-        await RefreshAsync();
-    }
+    internal Task RemoveAsync(InstalledPluginItem item) => _s.RemoveAsync([item.Model]);
 
     internal async Task UnblockAsync(InstalledPluginItem item)
     {
@@ -168,20 +171,18 @@ public sealed partial class InstalledPluginItem : ObservableObject
 {
     private readonly InstalledViewModel _owner;
 
-    public InstalledPluginItem(InstalledPlugin model, RemotePlugin? remote, InstalledViewModel owner)
+    public InstalledPluginItem(InstalledPlugin model, PluginStatus status, InstalledViewModel owner)
     {
         Model = model;
-        Remote = remote;
+        Status = status;
         _owner = owner;
-
-        var installed = AppServices.InstalledVersion(model);
-        var latest = remote?.Release?.TagName;
-        HasUpdate = remote?.Asset is not null && VersionUtil.IsNewer(latest, installed);
-        UpdateText = HasUpdate ? $"Update to {latest}" : "";
+        HasUpdate = status.HasUpdate && status.Remote?.Asset is not null;
+        UpdateText = HasUpdate ? $"Update to {status.Remote!.Release!.TagName}" : "";
     }
 
     public InstalledPlugin Model { get; }
-    public RemotePlugin? Remote { get; }
+    public PluginStatus Status { get; }
+    public RemotePlugin? Remote => Status.Remote;
 
     public string Name => Model.Name;
     public string Path => Model.Path;
@@ -197,10 +198,17 @@ public sealed partial class InstalledPluginItem : ObservableObject
     public string ToggleText => IsEnabled ? "Disable" : "Enable";
     public string ToggleGlyph => IsEnabled ? "\uE769" : "\uE768";
     public string BlockedText => $"BLOCKED ({Model.BlockedFiles})";
-    public string VersionText => VersionUtil.Display(AppServices.InstalledVersion(Model)) is { Length: > 0 } v ? v : "—";
+    public string VersionText => VersionUtil.Display(Status.DisplayVersion) is { Length: > 0 } v ? v : "—";
+    public bool IsLatest => Status.IsLatest;
+
+    public bool IsDuplicate => Status.Duplicates.Count > 0;
+    public string DuplicateTip => IsDuplicate
+        ? "Also enabled in " + string.Join(", ", Status.Duplicates.Select(d => d.Location.Name))
+          + ". vatSys loads both copies; remove or disable one."
+        : "";
 
     public string SourceText => Remote is not null
-        ? $"github/{Remote.Repo.Name}"
+        ? $"github/{Remote.Repo.Name}" + (Model.Record is null ? " (manual)" : "")
         : Model.Record is not null ? $"github/{Model.Record.Repo}" : "local";
 
     [RelayCommand] private Task Toggle() => _owner.ToggleAsync(this);

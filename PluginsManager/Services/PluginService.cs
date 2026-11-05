@@ -59,6 +59,7 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
                 IsEnabled = enabled.Count > 0,
                 BlockedFiles = files.Count(Unblocker.IsBlocked),
                 Record = FindRecord(location, name),
+                PluginDlls = PluginDllMap(enabled.Concat(disabled)),
             });
         }
 
@@ -79,6 +80,7 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
                 IsEnabled = !isDisabled,
                 BlockedFiles = Unblocker.IsBlocked(file) ? 1 : 0,
                 Record = FindRecord(location, itemName),
+                PluginDlls = PluginDllMap([file]),
             });
         }
 
@@ -133,14 +135,54 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
                 .Count(f => Unblocker.IsBlocked(f) && Unblocker.Unblock(f))
             : 0;
 
-    public async Task<InstallRecord> InstallAsync(
-        RemotePlugin remote, PluginLocation location, IProgress<double>? progress, CancellationToken ct = default)
+    /// <summary>Downloads a release asset to a temp folder and records which items and DLLs it would install.</summary>
+    public async Task<AssetIndexEntry> IndexAssetAsync(RemotePlugin remote, CancellationToken ct = default)
+    {
+        var asset = remote.Asset ?? throw new InvalidOperationException($"{remote.Repo.Name} has no installable asset.");
+        var work = NewWorkDir();
+        try
+        {
+            var download = Path.Combine(work, Path.GetFileName(asset.Name));
+            await gitHub.DownloadAsync(asset.BrowserDownloadUrl, download, null, ct);
+
+            var entry = new AssetIndexEntry { Url = asset.BrowserDownloadUrl };
+            if (asset.IsZip)
+            {
+                var extract = Path.Combine(work, "extract");
+                ZipFile.ExtractToDirectory(download, extract);
+                foreach (var (source, item) in PlanZip(ResolveContentRoot(extract), remote.Repo.Name))
+                {
+                    entry.Items.Add(item);
+                    foreach (var dll in Directory.GetFiles(source, "*", SearchOption.AllDirectories).Where(IsDll))
+                        entry.Dlls.TryAdd(Path.GetFileName(dll).ToLowerInvariant(), HashFile(dll));
+                }
+            }
+            else
+            {
+                entry.Items.Add(asset.Name);
+                entry.Dlls[asset.Name.ToLowerInvariant()] = HashFile(download);
+            }
+            return entry;
+        }
+        finally
+        {
+            TryDelete(work);
+        }
+    }
+
+    /// <summary>
+    /// Installs a release into <paramref name="location"/>. <paramref name="replace"/> are existing copies of the same
+    /// plugin in that folder (possibly installed by hand under another name); any of them the release does not
+    /// overwrite is removed afterwards, so vatSys never ends up with two copies. A disabled plugin stays disabled.
+    /// </summary>
+    public async Task<InstallResult> InstallAsync(
+        RemotePlugin remote, PluginLocation location, IReadOnlyList<InstalledPlugin> replace,
+        IProgress<double>? progress, CancellationToken ct = default)
     {
         var release = remote.Release ?? throw new InvalidOperationException($"{remote.Repo.Name} has no release.");
         var asset = remote.Asset ?? throw new InvalidOperationException($"{remote.Repo.Name} {release.TagName} has no .zip or .dll asset.");
 
-        var work = Path.Combine(Path.GetTempPath(), "vatSysPluginsManager", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(work);
+        var work = NewWorkDir();
         try
         {
             var download = Path.Combine(work, Path.GetFileName(asset.Name));
@@ -150,10 +192,31 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
             var items = asset.IsZip
                 ? InstallZip(download, Path.Combine(work, "extract"), location.Path, remote.Repo.Name)
                 : [InstallDll(download, location.Path)];
+            var itemPaths = items.Select(i => Path.Combine(location.Path, i)).ToList();
+
+            var result = new InstallResult();
+            foreach (var old in replace)
+            {
+                var overwritten = itemPaths.Any(p => SamePath(p, old.Path) || SamePath(p + DisabledSuffix, old.Path));
+                if (overwritten) continue;
+                try
+                {
+                    if (old.IsDirectory && itemPaths.Count == 1 && Directory.Exists(itemPaths[0]))
+                        CopyUserFiles(old.Path, itemPaths[0]);
+                    Remove(old);
+                    result.Replaced.Add(old.Path);
+                }
+                catch (Exception ex)
+                {
+                    result.Warnings.Add($"Could not remove the old copy {old.Path}: {ex.Message}");
+                }
+            }
+
+            if (replace.Count > 0 && replace.All(r => !r.IsEnabled))
+                foreach (var path in itemPaths) DisablePath(path);
 
             if (Settings.AutoUnblock)
-                foreach (var item in items)
-                    Unblocker.UnblockAll(Path.Combine(location.Path, item));
+                foreach (var path in itemPaths) Unblocker.UnblockAll(File.Exists(path + DisabledSuffix) ? path + DisabledSuffix : path);
 
             var record = new InstallRecord
             {
@@ -168,12 +231,67 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
                 string.Equals(r.Repo, record.Repo, StringComparison.OrdinalIgnoreCase) && SamePath(r.LocationPath, location.Path));
             store.Installs.Add(record);
             store.SaveInstalls();
-            return record;
+            result.Record = record;
+            return result;
         }
         finally
         {
-            try { Directory.Delete(work, recursive: true); } catch { /* temp cleanup is best effort */ }
+            TryDelete(work);
         }
+    }
+
+    private static string NewWorkDir()
+    {
+        var work = Path.Combine(Path.GetTempPath(), "vatSysPluginsManager", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(work);
+        return work;
+    }
+
+    private static void TryDelete(string dir)
+    {
+        try { Directory.Delete(dir, recursive: true); } catch { /* temp cleanup is best effort */ }
+    }
+
+    /// <summary>Keeps settings/logs from a renamed old copy: copies files the new folder does not have, except binaries.</summary>
+    private static void CopyUserFiles(string oldDir, string newDir)
+    {
+        foreach (var file in Directory.GetFiles(oldDir, "*", SearchOption.AllDirectories))
+        {
+            if (IsDll(file) || IsDisabledDll(file) || file.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase)) continue;
+            var dest = Path.Combine(newDir, Path.GetRelativePath(oldDir, file));
+            if (File.Exists(dest)) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest);
+        }
+    }
+
+    private static void DisablePath(string path)
+    {
+        var files = Directory.Exists(path)
+            ? Directory.GetFiles(path, "*", SearchOption.AllDirectories)
+            : File.Exists(path) ? [path] : [];
+        foreach (var dll in files.Where(IsDll))
+            File.Move(dll, dll + DisabledSuffix, overwrite: true);
+    }
+
+    public static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+    }
+
+    public static bool IsDependency(string dllName) =>
+        DependencyPrefixes.Any(p => dllName.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+
+    private static Dictionary<string, string> PluginDllMap(IEnumerable<string> dllPaths)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in dllPaths)
+        {
+            var name = Path.GetFileName(IsDisabledDll(path) ? path[..^DisabledSuffix.Length] : path);
+            if (!IsDependency(name)) map.TryAdd(name, path);
+        }
+        return map;
     }
 
     private static string InstallDll(string download, string pluginsDir)
@@ -189,20 +307,21 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
     private static List<string> InstallZip(string zip, string extractDir, string pluginsDir, string repoName)
     {
         ZipFile.ExtractToDirectory(zip, extractDir);
-        var root = ResolveContentRoot(extractDir);
+        var plan = PlanZip(ResolveContentRoot(extractDir), repoName);
+        foreach (var (source, item) in plan) CopyPluginFolder(source, Path.Combine(pluginsDir, item));
+        return plan.Select(p => p.Item).ToList();
+    }
 
+    /// <summary>
+    /// Maps an archive's content root to plugin folders: each top-level folder is copied as-is, while loose files
+    /// get their own folder named after the repository.
+    /// </summary>
+    private static List<(string Source, string Item)> PlanZip(string root, string repoName)
+    {
         var dirs = Directory.GetDirectories(root);
-        var files = Directory.GetFiles(root);
-        if (files.Length == 0 && dirs.Length > 0)
-        {
-            // One or more plugin folders: copy each one as-is.
-            foreach (var dir in dirs) CopyPluginFolder(dir, Path.Combine(pluginsDir, Path.GetFileName(dir)));
-            return dirs.Select(d => Path.GetFileName(d)).ToList();
-        }
-
-        // Loose files: give the plugin its own folder named after the repository.
-        CopyPluginFolder(root, Path.Combine(pluginsDir, repoName));
-        return [repoName];
+        if (Directory.GetFiles(root).Length == 0 && dirs.Length > 0)
+            return dirs.Select(d => (d, Path.GetFileName(d))).ToList();
+        return [(root, repoName)];
     }
 
     /// <summary>Strips wrapper folders such as "bin/Plugins/" from release archives.</summary>

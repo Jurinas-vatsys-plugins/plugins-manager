@@ -91,10 +91,26 @@
 
                   <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6" Margin="16,0,0,0" Width="150">
                     <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
-                            IsEnabled="{Binding CanInstall}" Command="{Binding InstallCommand}" IsVisible="{Binding !IsBusy}">
+                            IsEnabled="{Binding CanInstall}" Command="{Binding InstallCommand}" IsVisible="{Binding ShowInstall}">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Classes="icon" Text="&#xE896;" FontSize="12" />
                         <TextBlock Text="Install" />
+                      </StackPanel>
+                    </Button>
+                    <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            IsVisible="{Binding HasUpdate}" IsEnabled="{Binding !IsBusy}" Command="{Binding UpdateCommand}"
+                            ToolTip.Tip="{Binding UpdateTip}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="icon" Text="&#xE777;" FontSize="12" />
+                        <TextBlock Text="{Binding UpdateText}" />
+                      </StackPanel>
+                    </Button>
+                    <Button Classes="danger" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                            IsVisible="{Binding IsInstalled}" IsEnabled="{Binding !IsBusy}" Command="{Binding RemoveCommand}"
+                            ToolTip.Tip="{Binding RemoveTip}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Classes="icon" Text="&#xE74D;" FontSize="12" Foreground="{StaticResource DangerBrush}" />
+                        <TextBlock Text="Remove" />
                       </StackPanel>
                     </Button>
                     <ProgressBar IsVisible="{Binding IsBusy}" Value="{Binding Progress}" Minimum="0" Maximum="100" Height="6" />

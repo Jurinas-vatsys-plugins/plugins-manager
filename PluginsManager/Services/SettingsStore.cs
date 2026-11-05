@@ -12,6 +12,7 @@ public sealed class SettingsStore
 
     private static readonly string SettingsFile = Path.Combine(DataDir, "settings.json");
     private static readonly string InstallsFile = Path.Combine(DataDir, "installs.json");
+    private static readonly string AssetIndexFile = Path.Combine(DataDir, "asset-index.json");
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -23,10 +24,13 @@ public sealed class SettingsStore
 
     public List<InstallRecord> Installs { get; private set; } = [];
 
+    public List<AssetIndexEntry> AssetIndex { get; private set; } = [];
+
     public void Load()
     {
         Settings = Read<AppSettings>(SettingsFile) ?? new AppSettings();
         Installs = Read<List<InstallRecord>>(InstallsFile) ?? [];
+        AssetIndex = Read<List<AssetIndexEntry>>(AssetIndexFile) ?? [];
     }
 
     public void Save(AppSettings settings)
@@ -36,6 +40,8 @@ public sealed class SettingsStore
     }
 
     public void SaveInstalls() => Write(InstallsFile, Installs);
+
+    public void SaveAssetIndex() => Write(AssetIndexFile, AssetIndex);
 
     private static T? Read<T>(string file)
     {

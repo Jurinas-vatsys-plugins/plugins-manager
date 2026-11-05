@@ -28,6 +28,7 @@ public sealed partial class BrowseViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(TargetIsGlobal), nameof(TargetPathText))]
     private bool _targetIsProfile;
 
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TargetPathText))]
     private string? _selectedProfile;
@@ -69,15 +70,26 @@ public sealed partial class BrowseViewModel : ViewModelBase
     {
         foreach (var item in Items)
         {
-            var copies = _s.Installed.Where(p => _s.MatchRemote(p) == item.Model).ToList();
+            var copies = _s.Installed
+                .Where(p => string.Equals(_s.Status(p).Remote?.Repo.Name, item.Name, StringComparison.OrdinalIgnoreCase))
+                .ToList();
             item.InstalledText = copies.Count == 0
                 ? "Not installed"
                 : "Installed: " + string.Join(", ", copies.Select(c =>
                 {
-                    var version = VersionUtil.Display(AppServices.InstalledVersion(c));
+                    var version = VersionUtil.Display(_s.Status(c).DisplayVersion);
                     return $"{c.Location.Name} ({(version.Length > 0 ? version : "?")})";
                 }));
+            item.Copies = copies;
             item.IsInstalled = copies.Count > 0;
+
+            // Installed plugins only offer Update (every outdated copy) and Remove; Install is for new plugins.
+            var outdated = copies.Where(c => _s.Status(c).HasUpdate).ToList();
+            item.UpdateCount = outdated.Count;
+            item.UpdateText = $"Update ({outdated.Count})";
+            item.UpdateTip = "Update to " + item.TagText + ": "
+                + string.Join(", ", outdated.Select(c => c.Location.Name).Distinct());
+            item.RemoveTip = "Remove from: " + string.Join(", ", copies.Select(c => c.Location.Name));
         }
     }
 
@@ -86,6 +98,32 @@ public sealed partial class BrowseViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenOrganization() => DialogService.Open(GitHubService.OrgUrl);
+
+    internal async Task UpdateAsync(RemotePluginItem item)
+    {
+        var locations = item.Copies
+            .Where(c => _s.Status(c).HasUpdate)
+            .Select(c => c.Location)
+            .DistinctBy(l => l.Path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (locations.Count == 0 || !await _s.ConfirmIfVatSysRunningAsync()) return;
+
+        item.IsBusy = true;
+        try
+        {
+            foreach (var location in locations)
+            {
+                item.Progress = 0;
+                await _s.InstallAsync(item.Model, location, new Progress<double>(p => item.Progress = p * 100), skipRunningCheck: true);
+            }
+        }
+        finally
+        {
+            item.IsBusy = false;
+        }
+    }
+
+    internal Task RemoveAsync(RemotePluginItem item) => _s.RemoveAsync(item.Copies);
 
     internal async Task InstallAsync(RemotePluginItem item)
     {
@@ -133,16 +171,33 @@ public sealed partial class RemotePluginItem : ObservableObject
         : Model.Release is null ? "No release published yet" : "Release has no .zip or .dll asset";
 
     public bool CanInstall => Model.Asset is not null && !IsBusy;
+    public bool ShowInstall => !IsInstalled && !IsBusy;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanInstall))]
+    [NotifyPropertyChangedFor(nameof(CanInstall), nameof(ShowInstall))]
     private bool _isBusy;
 
     [ObservableProperty] private double _progress;
     [ObservableProperty] private string _installedText = "Not installed";
-    [ObservableProperty] private bool _isInstalled;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowInstall))]
+    private bool _isInstalled;
+    [ObservableProperty] private string _updateText = "";
+    [ObservableProperty] private string _updateTip = "";
+    [ObservableProperty] private string _removeTip = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdate))]
+    private int _updateCount;
+
+    public bool HasUpdate => UpdateCount > 0 && Model.Asset is not null;
+
+    /// <summary>Installed copies of this plugin in all locations.</summary>
+    public IReadOnlyList<InstalledPlugin> Copies { get; set; } = [];
 
     [RelayCommand] private Task Install() => _owner.InstallAsync(this);
+    [RelayCommand] private Task Update() => _owner.UpdateAsync(this);
+    [RelayCommand] private Task Remove() => _owner.RemoveAsync(this);
     [RelayCommand] private void OpenRepo() => DialogService.Open(Model.Repo.HtmlUrl);
     [RelayCommand] private void OpenRelease() => DialogService.Open(Model.Release?.HtmlUrl ?? Model.Repo.HtmlUrl + "/releases");
 

@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v0.2.0"
+        required: true
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          dotnet publish PluginsManager -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
+            -p:Version=$version -o publish
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Tag pushes are pre-releases when the tag has a suffix (v0.2.0-beta.1); manual runs use the checkbox.
+          $pre = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.prerelease }}' -eq 'true' } else { $env:TAG.Contains('-') }
+          $flags = @('--title', "vatSys Plugin Manager $env:TAG", '--generate-notes', '--target', '${{ github.sha }}')
+          if ($pre) { $flags += '--prerelease' }
+          gh release create $env:TAG publish/vatSysPluginsManager.exe @flags

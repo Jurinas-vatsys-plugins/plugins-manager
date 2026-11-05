@@ -9,7 +9,8 @@ Get `vatSysPluginsManager.exe` from the [latest release](https://github.com/Juri
 ## Features
 
 - Install plugins into the global vatSys folder (`<vatSys>\bin\Plugins`) or into one profile (`Documents\vatSys Files\Profiles\<profile>\Plugins`)
-- Shows when installed plugins have updates
+- Recognises plugins installed by hand (by comparing DLLs with the release files) and shows when any copy has an update
+- Warns when the same plugin is enabled both in the vatSys folder and in a profile, since vatSys then loads it twice
 - Disable/enable plugins (renames DLLs to `*.dll.disabled`) and remove them, with a confirmation prompt
 - Unblocks plugin DLLs automatically (same as PowerShell `Unblock-File`), so vatSys can load downloaded files
 
@@ -20,3 +21,7 @@ Plugin versions come from the Jurina API (`https://api.jurina.org/v1/vatsys-plug
 ```bash
 dotnet publish PluginsManager -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
 ```
+
+## Release
+
+Pushing a tag `v*` runs [.github/workflows/release.yml](.github/workflows/release.yml), which publishes the single-file exe and creates the GitHub release; tags with a suffix (`v0.3.0-beta.1`) become pre-releases. It can also be started from the Actions tab with a tag and a pre-release checkbox.
