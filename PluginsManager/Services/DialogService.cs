@@ -28,6 +28,24 @@ public static class DialogService
         return result.Count > 0 ? result[0].TryGetLocalPath() : null;
     }
 
+    public static async Task AlertAsync(string title, string message)
+    {
+        if (MainWindow is not { } owner) return;
+        await new ConfirmDialog(title, message, "OK", false).AsAlert().ShowDialog<bool>(owner);
+    }
+
+    public static async Task<string?> PickFileAsync(string title, string patternName, params string[] patterns)
+    {
+        if (MainWindow is not { } owner) return null;
+        var result = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType(patternName) { Patterns = patterns }],
+        });
+        return result.Count > 0 ? result[0].TryGetLocalPath() : null;
+    }
+
     public static void Open(string target)
     {
         try { Process.Start(new ProcessStartInfo(target) { UseShellExecute = true }); }

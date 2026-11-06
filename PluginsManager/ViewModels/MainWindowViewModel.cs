@@ -140,6 +140,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         {
             ManagerUpdateText = banner;
             S.Error($"Self-update failed: {ex.Message}");
+            if (await S.OfferElevationAsync(ex, "Updating vatSys Plugin Manager")) return;
             if (await DialogService.ConfirmAsync("Update failed",
                     $"{ex.Message}\n\nOpen the release page to download the new version manually?", "Open release page"))
                 OpenManagerRelease();

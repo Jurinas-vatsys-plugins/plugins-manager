@@ -338,6 +338,7 @@ public sealed partial class AppServices : ObservableObject
         if (!await DialogService.ConfirmAsync("Remove plugin", $"{title}\n\n{list}\n\n{where}", "Remove", danger: true)) return false;
         if (!await ConfirmIfVatSysRunningAsync()) return false;
 
+        Exception? denied = null;
         foreach (var plugin in plugins)
         {
             try
@@ -348,14 +349,34 @@ public sealed partial class AppServices : ObservableObject
             catch (Exception ex)
             {
                 Error($"Could not remove {plugin.Name} from {plugin.Location.Name}: {ex.Message}");
+                if (Elevation.IsAccessDenied(ex)) denied ??= ex;
             }
         }
         await RescanAsync();
+        if (denied is not null) await OfferElevationAsync(denied, "Removing the plugin");
         return true;
     }
 
-    public async Task<bool> InstallAsync(
+    public Task<bool> InstallAsync(
         RemotePlugin remote, PluginLocation location, IProgress<double>? progress = null, bool skipRunningCheck = false)
+    {
+        var tag = remote.Release?.TagName ?? "?";
+        return InstallCoreAsync(remote, location, skipRunningCheck, $"{remote.Repo.Name} {tag}",
+            replace => Plugins.InstallAsync(remote, location, replace, progress));
+    }
+
+    /// <summary>Installs a local ZIP of an organisation plugin (identified by <see cref="IdentifyZip"/>).</summary>
+    public Task<bool> InstallZipAsync(string zip, ZipIdentification id, PluginLocation location)
+    {
+        // Official files keep the release tag; anything else is matched by file contents, so updates still show.
+        var tag = id.IsOfficial ? id.Remote.Release!.TagName : "zip";
+        return InstallCoreAsync(id.Remote, location, skipRunningCheck: false, $"{id.Remote.Repo.Name} from {Path.GetFileName(zip)}",
+            replace => Task.Run(() => Plugins.InstallFile(zip, id.Remote.Repo.Name, tag, location, replace)));
+    }
+
+    private async Task<bool> InstallCoreAsync(
+        RemotePlugin remote, PluginLocation location, bool skipRunningCheck, string label,
+        Func<IReadOnlyList<InstalledPlugin>, Task<InstallResult>> install)
     {
         // Existing copies in the same folder, whatever name they were installed under, are updated in place.
         var replace = Installed
@@ -364,12 +385,11 @@ public sealed partial class AppServices : ObservableObject
         if (replace.Count == 0 && !await ConfirmDuplicateInstallAsync(remote, location)) return false;
         if (!skipRunningCheck && !await ConfirmIfVatSysRunningAsync()) return false;
 
-        var tag = remote.Release?.TagName ?? "?";
-        Info($"Installing {remote.Repo.Name} {tag} to {location.Path} ...");
+        Info($"Installing {label} to {location.Path} ...");
         try
         {
-            var result = await Plugins.InstallAsync(remote, location, replace, progress);
-            Success($"Installed {remote.Repo.Name} {tag} ({string.Join(", ", result.Record.Items)}) to {location.Name}."
+            var result = await install(replace);
+            Success($"Installed {label} ({string.Join(", ", result.Record.Items)}) to {location.Name}."
                 + (Settings.AutoUnblock ? " Files unblocked." : ""));
             foreach (var path in result.Replaced) Info($"Removed the old copy {path}.");
             result.Warnings.ForEach(Warn);
@@ -378,8 +398,69 @@ public sealed partial class AppServices : ObservableObject
         }
         catch (Exception ex)
         {
-            Error($"Install of {remote.Repo.Name} failed: {ex.Message}");
+            Error($"Install of {label} failed: {ex.Message}");
+            await OfferElevationAsync(ex, $"Installing to {location.Path}");
             return false;
         }
     }
+
+    /// <summary>Works out which organisation plugin a local ZIP contains, by the plugin DLLs in it.</summary>
+    public ZipIdentification? IdentifyZip(AssetIndexEntry zip)
+    {
+        var zipDlls = zip.Dlls.Keys.Where(k => !PluginService.IsDependency(k)).ToList();
+        if (zipDlls.Count == 0) return null;
+
+        var index = Store.AssetIndex.ToList();
+        ZipIdentification? best = null;
+        var bestScore = 0;
+        foreach (var remote in Catalog)
+        {
+            if (IndexFor(remote, index) is not { } release) continue;
+            var shared = zipDlls.Where(release.Dlls.ContainsKey).ToList();
+            if (shared.Count <= bestScore) continue;
+
+            bestScore = shared.Count;
+            var identical = zip.Dlls.Count == release.Dlls.Count
+                && release.Dlls.All(d => zip.Dlls.TryGetValue(d.Key, out var h) && string.Equals(h, d.Value, StringComparison.OrdinalIgnoreCase));
+            best = new ZipIdentification(remote, identical);
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Offers to restart as administrator when <paramref name="ex"/> is an access-denied error, e.g. writing to a
+    /// vatSys installed under Program Files. Returns true when the app is restarting.
+    /// </summary>
+    public async Task<bool> OfferElevationAsync(Exception ex, string action)
+    {
+        if (!Elevation.IsAccessDenied(ex) || Elevation.IsElevated) return false;
+
+        var restart = await DialogService.ConfirmAsync(
+            "Administrator rights needed",
+            $"{action} failed because Windows denied access:\n\n{ex.Message}\n\n"
+            + "The folder is probably protected (for example a vatSys installed under Program Files). "
+            + "Restart vatSys Plugin Manager as administrator and try again?",
+            "Restart as administrator");
+        if (!restart) return false;
+
+        try
+        {
+            if (!Elevation.RestartElevated())
+            {
+                Warn("Restart as administrator was cancelled.");
+                return false;
+            }
+        }
+        catch (Exception startError)
+        {
+            Error($"Could not restart as administrator: {startError.Message}");
+            return false;
+        }
+
+        (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
+        return true;
+    }
 }
+
+/// <summary>Which organisation plugin a local ZIP is, and whether its DLLs are identical to the latest release.</summary>
+public sealed record ZipIdentification(RemotePlugin Remote, bool IsOfficial);

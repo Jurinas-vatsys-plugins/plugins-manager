@@ -109,13 +109,19 @@ public sealed partial class InstalledViewModel : ViewModelBase
         }
 
         var count = 0;
+        Exception? denied = null;
         foreach (var item in blocked)
         {
             try { count += _s.Plugins.Unblock(item.Model); }
-            catch (Exception ex) { _s.Error($"Unblock of {item.Name} failed: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                _s.Error($"Unblock of {item.Name} failed: {ex.Message}");
+                if (Elevation.IsAccessDenied(ex)) denied ??= ex;
+            }
         }
         _s.Success($"Unblocked {count} file(s) in {blocked.Count} plugin(s).");
         await RefreshAsync();
+        if (denied is not null) await _s.OfferElevationAsync(denied, "Unblocking plugin files");
     }
 
     internal async Task ToggleAsync(InstalledPluginItem item)
@@ -143,6 +149,9 @@ public sealed partial class InstalledViewModel : ViewModelBase
         catch (Exception ex)
         {
             _s.Error($"Could not {(enable ? "enable" : "disable")} {item.Name}: {ex.Message}");
+            await RefreshAsync();
+            await _s.OfferElevationAsync(ex, $"{(enable ? "Enabling" : "Disabling")} {item.Name}");
+            return;
         }
         await RefreshAsync();
     }
@@ -159,6 +168,9 @@ public sealed partial class InstalledViewModel : ViewModelBase
         catch (Exception ex)
         {
             _s.Error($"Unblock of {item.Name} failed: {ex.Message}");
+            await RefreshAsync();
+            await _s.OfferElevationAsync(ex, $"Unblocking {item.Name}");
+            return;
         }
         await RefreshAsync();
     }

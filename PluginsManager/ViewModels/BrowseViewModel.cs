@@ -99,6 +99,77 @@ public sealed partial class BrowseViewModel : ViewModelBase
     [RelayCommand]
     private void OpenOrganization() => DialogService.Open(GitHubService.OrgUrl);
 
+    [ObservableProperty] private bool _isInspectingZip;
+
+    /// <summary>
+    /// Installs a ZIP of an organisation plugin that was downloaded somewhere else. The ZIP is identified by its
+    /// plugin DLLs; anything that is not one of the organisation's plugins is refused.
+    /// </summary>
+    [RelayCommand]
+    private async Task InstallFromZipAsync()
+    {
+        if (Target() is not { } target)
+        {
+            await DialogService.AlertAsync("Install from ZIP", "Select a profile to install into first.");
+            return;
+        }
+        if (await DialogService.PickFileAsync("Select a plugin ZIP", "ZIP archive", "*.zip") is not { } zip) return;
+
+        AssetIndexEntry entry;
+        bool isSource;
+        IsInspectingZip = true;
+        try
+        {
+            (entry, isSource) = await Task.Run(() => _s.Plugins.InspectZip(zip));
+        }
+        catch (Exception ex)
+        {
+            _s.Error($"Could not read {zip}: {ex.Message}");
+            await DialogService.AlertAsync("Install from ZIP", $"The file could not be read as a ZIP archive:\n\n{ex.Message}");
+            return;
+        }
+        finally
+        {
+            IsInspectingZip = false;
+        }
+
+        if (isSource)
+        {
+            await DialogService.AlertAsync("Source code archive",
+                $"{Path.GetFileName(zip)} contains source code, not a built plugin. It has to be compiled before vatSys can load it.\n\n"
+                + "Download the plugin's release ZIP instead, or install it from the Browse list.");
+            return;
+        }
+        if (entry.Dlls.Count == 0)
+        {
+            await DialogService.AlertAsync("Install from ZIP", $"{Path.GetFileName(zip)} does not contain any plugin DLL.");
+            return;
+        }
+        if (_s.IdentifyZip(entry) is not { } id)
+        {
+            await DialogService.AlertAsync("Not an organisation plugin",
+                $"{Path.GetFileName(zip)} does not match any plugin of {GitHubService.Org}.\n\n"
+                + "Only plugins from the organisation can be installed from a ZIP. If the plugin list is empty, click Refresh and try again.");
+            return;
+        }
+
+        var latest = id.Remote.Release?.TagName ?? "?";
+        var match = id.IsOfficial
+            ? $"Its plugin DLLs are identical to the official release {latest}. Other files in the ZIP were not checked."
+            : $"Its plugin DLLs are NOT identical to the latest official release {latest}. They may be from an older or newer version, modified, or not from the plugin author.";
+        var disclaimer =
+            "DISCLAIMER: THE SAFETY OF THE FILES IN THIS ZIP IS NOT GUARANTEED\n"
+            + "This ZIP did not come from the official GitHub release download. The files inside it are not scanned or verified, "
+            + "and neither vatSys Plugin Manager nor the plugin authors guarantee that they are safe, unmodified or working. "
+            + "Plugins run inside vatSys with full access to your computer. Only continue if you trust where this file came from; "
+            + "you install it at your own risk.\n\n"
+            + $"Plugin: {id.Remote.Repo.Name}\n{match}\n\n"
+            + $"File: {zip}\nInstalls: {string.Join(", ", entry.Items)}\nInto: {target.Path}";
+        if (!await DialogService.ConfirmAsync("Install from ZIP: no safety guarantee", disclaimer, "I understand, install", danger: true)) return;
+
+        await _s.InstallZipAsync(zip, id, target);
+    }
+
     internal async Task UpdateAsync(RemotePluginItem item)
     {
         var locations = item.Copies

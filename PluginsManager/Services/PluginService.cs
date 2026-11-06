@@ -145,23 +145,10 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
             var download = Path.Combine(work, Path.GetFileName(asset.Name));
             await gitHub.DownloadAsync(asset.BrowserDownloadUrl, download, null, ct);
 
-            var entry = new AssetIndexEntry { Url = asset.BrowserDownloadUrl };
-            if (asset.IsZip)
-            {
-                var extract = Path.Combine(work, "extract");
-                ZipFile.ExtractToDirectory(download, extract);
-                foreach (var (source, item) in PlanZip(ResolveContentRoot(extract), remote.Repo.Name))
-                {
-                    entry.Items.Add(item);
-                    foreach (var dll in Directory.GetFiles(source, "*", SearchOption.AllDirectories).Where(IsDll))
-                        entry.Dlls.TryAdd(Path.GetFileName(dll).ToLowerInvariant(), HashFile(dll));
-                }
-            }
-            else
-            {
-                entry.Items.Add(asset.Name);
-                entry.Dlls[asset.Name.ToLowerInvariant()] = HashFile(download);
-            }
+            var entry = asset.IsZip
+                ? IndexZip(download, Path.Combine(work, "extract"), remote.Repo.Name)
+                : new AssetIndexEntry { Items = [asset.Name], Dlls = { [asset.Name.ToLowerInvariant()] = HashFile(download) } };
+            entry.Url = asset.BrowserDownloadUrl;
             return entry;
         }
         finally
@@ -187,11 +174,67 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
         {
             var download = Path.Combine(work, Path.GetFileName(asset.Name));
             await gitHub.DownloadAsync(asset.BrowserDownloadUrl, download, progress, ct);
+            return InstallFile(download, remote.Repo.Name, release.TagName, location, replace);
+        }
+        finally
+        {
+            TryDelete(work);
+        }
+    }
 
+    /// <summary>Lists what a local ZIP would install, and whether it is a source-code archive rather than a build.</summary>
+    public (AssetIndexEntry Entry, bool IsSourceCode) InspectZip(string zip)
+    {
+        var work = NewWorkDir();
+        try
+        {
+            using (var archive = ZipFile.OpenRead(zip))
+            {
+                var names = archive.Entries.Select(e => e.FullName).ToList();
+                var hasDll = names.Any(IsDll);
+                var hasSource = names.Any(n => n.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)
+                    || n.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+                    || n.EndsWith(".cs", StringComparison.OrdinalIgnoreCase));
+                if (!hasDll) return (new AssetIndexEntry { Url = zip }, hasSource);
+            }
+
+            var entry = IndexZip(zip, Path.Combine(work, "extract"), Path.GetFileNameWithoutExtension(zip));
+            entry.Url = zip;
+            return (entry, false);
+        }
+        finally
+        {
+            TryDelete(work);
+        }
+    }
+
+    private static AssetIndexEntry IndexZip(string zip, string extractDir, string repoName)
+    {
+        ZipFile.ExtractToDirectory(zip, extractDir);
+        var entry = new AssetIndexEntry();
+        foreach (var (source, item) in PlanZip(ResolveContentRoot(extractDir), repoName))
+        {
+            entry.Items.Add(item);
+            foreach (var dll in Directory.GetFiles(source, "*", SearchOption.AllDirectories).Where(IsDll))
+                entry.Dlls.TryAdd(Path.GetFileName(dll).ToLowerInvariant(), HashFile(dll));
+        }
+        return entry;
+    }
+
+    /// <summary>
+    /// Installs a downloaded release asset or a local ZIP (<paramref name="file"/>, .zip or .dll) for
+    /// <paramref name="repoName"/>; see <see cref="InstallAsync"/> for how existing copies are replaced.
+    /// </summary>
+    public InstallResult InstallFile(
+        string file, string repoName, string tag, PluginLocation location, IReadOnlyList<InstalledPlugin> replace)
+    {
+        var work = NewWorkDir();
+        try
+        {
             Directory.CreateDirectory(location.Path);
-            var items = asset.IsZip
-                ? InstallZip(download, Path.Combine(work, "extract"), location.Path, remote.Repo.Name)
-                : [InstallDll(download, location.Path)];
+            var items = file.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+                ? InstallZip(file, Path.Combine(work, "extract"), location.Path, repoName)
+                : [InstallDll(file, location.Path)];
             var itemPaths = items.Select(i => Path.Combine(location.Path, i)).ToList();
 
             var result = new InstallResult();
@@ -220,9 +263,9 @@ public sealed class PluginService(SettingsStore store, GitHubService gitHub)
 
             var record = new InstallRecord
             {
-                Repo = remote.Repo.Name,
-                Tag = release.TagName,
-                AssetName = asset.Name,
+                Repo = repoName,
+                Tag = tag,
+                AssetName = Path.GetFileName(file),
                 LocationPath = location.Path,
                 Items = items,
                 InstalledAt = DateTimeOffset.Now,

@@ -15,6 +15,8 @@ public partial class ConfirmDialog : Window
         HeaderText.Text = title;
         MessageText.Text = message;
         ConfirmButton.Content = confirmText;
+        ConfirmButton.Width = double.NaN; // fit longer labels such as "I understand, install"
+        ConfirmButton.MinWidth = 90;
         if (danger)
         {
             ConfirmButton.Classes.Remove("accent");
@@ -26,5 +28,12 @@ public partial class ConfirmDialog : Window
 
         ConfirmButton.Click += (_, _) => Close(true);
         CancelButton.Click += (_, _) => Close(false);
+    }
+
+    /// <summary>Turns the dialog into a message box with a single OK button.</summary>
+    public ConfirmDialog AsAlert()
+    {
+        CancelButton.IsVisible = false;
+        return this;
     }
 }

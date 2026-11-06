@@ -17,6 +17,8 @@ Each format updates itself from the same format.
 - Recognises plugins installed by hand (by comparing DLLs with the release files) and shows when any copy has an update
 - Warns when the same plugin is enabled both in the vatSys folder and in a profile, since vatSys then loads it twice
 - Disable/enable plugins (renames DLLs to `*.dll.disabled`) and remove them, with a confirmation prompt
+- Install from ZIP: installs a ZIP of an organisation plugin downloaded elsewhere, after a disclaimer that the safety of its files is not guaranteed; other ZIPs and source-code archives are refused
+- Offers to restart as administrator when Windows denies access to a plugin folder (e.g. vatSys under Program Files)
 - Updates itself: when a new release is out, **Update now** downloads the asset of the format you run, swaps the files and restarts
 - Unblocks plugin DLLs automatically (same as PowerShell `Unblock-File`), so vatSys can load downloaded files
 

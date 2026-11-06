@@ -9,7 +9,7 @@
     <AssemblyName>vatSysPluginsManager</AssemblyName>
     <RootNamespace>PluginsManager</RootNamespace>
     <Product>vatSys Plugin Manager</Product>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>

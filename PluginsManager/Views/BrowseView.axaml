@@ -15,6 +15,13 @@
             <TextBlock Text="Refresh" />
           </StackPanel>
         </Button>
+        <Button Command="{Binding InstallFromZipCommand}"
+                ToolTip.Tip="Install an organisation plugin from a ZIP you downloaded elsewhere, into the location selected below">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Classes="icon" Text="&#xE8B7;" FontSize="12" />
+            <TextBlock Text="Install from ZIP..." />
+          </StackPanel>
+        </Button>
         <Button Command="{Binding OpenOrganizationCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <TextBlock Classes="icon" Text="&#xE8A7;" FontSize="12" />
@@ -47,6 +54,7 @@
     </Border>
 
     <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="2" MinHeight="2" IsVisible="{Binding S.IsCatalogLoading}" />
+    <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Height="2" MinHeight="2" IsVisible="{Binding IsInspectingZip}" />
 
     <Border DockPanel.Dock="Top" IsVisible="{Binding S.CatalogError, Converter={x:Static ObjectConverters.IsNotNull}}"
             Background="#3A1D1D" BorderBrush="{StaticResource DangerBrush}" BorderThickness="1" CornerRadius="3"
