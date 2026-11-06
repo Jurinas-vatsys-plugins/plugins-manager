@@ -32,9 +32,16 @@ jobs:
         shell: pwsh
         run: |
           $version = $env:TAG.TrimStart('v')
+          # 1) Single self-contained exe, no .NET install needed.
           dotnet publish PluginsManager -c Release -r win-x64 --self-contained true `
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
-            -p:Version=$version -o publish
+            -p:Version=$version -p:Distribution=exe -o out/exe
+          # 2) Framework-dependent zip, needs the .NET 8 runtime.
+          dotnet publish PluginsManager -c Release -r win-x64 --self-contained false `
+            -p:Version=$version -p:Distribution=zip -o out/zip
+          New-Item -ItemType Directory -Force release | Out-Null
+          Copy-Item out/exe/vatSysPluginsManager.exe release/
+          Compress-Archive -Path out/zip/* -DestinationPath release/vatSysPluginsManager-framework-dependent.zip
 
       - name: Create release
         shell: pwsh
@@ -45,4 +52,4 @@ jobs:
           $pre = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.prerelease }}' -eq 'true' } else { $env:TAG.Contains('-') }
           $flags = @('--title', "vatSys Plugin Manager $env:TAG", '--generate-notes', '--target', '${{ github.sha }}')
           if ($pre) { $flags += '--prerelease' }
-          gh release create $env:TAG publish/vatSysPluginsManager.exe @flags
+          gh release create $env:TAG release/vatSysPluginsManager.exe release/vatSysPluginsManager-framework-dependent.zip @flags

@@ -111,7 +111,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
     private async Task UpdateManagerAsync()
     {
         if (_managerRelease is not { } release) return;
-        var asset = SelfUpdater.FindAsset(release);
+        var asset = SelfUpdater.FindAsset(release, SelfUpdater.Current);
         if (asset is null || !SelfUpdater.IsSupported || SelfUpdater.ExePath is not { } exe)
         {
             S.Warn("This copy cannot update itself; download the new version from the release page.");
@@ -130,7 +130,7 @@ public sealed partial class MainWindowViewModel : ViewModelBase
         try
         {
             S.Info($"Downloading vatSys Plugin Manager {release.TagName} ...");
-            await SelfUpdater.InstallAsync(S.GitHub, asset, exe,
+            await SelfUpdater.InstallAsync(S.GitHub, asset, SelfUpdater.Current, exe,
                 new Progress<double>(p => ManagerUpdateText = $"Downloading {release.TagName} ... {p:P0}"));
             S.Success($"Updated to {release.TagName}. Restarting ...");
             SelfUpdater.Restart(exe);

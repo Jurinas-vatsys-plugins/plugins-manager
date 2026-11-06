@@ -9,7 +9,7 @@
     <AssemblyName>vatSysPluginsManager</AssemblyName>
     <RootNamespace>PluginsManager</RootNamespace>
     <Product>vatSys Plugin Manager</Product>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
@@ -18,6 +18,12 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <!-- Which release asset this build is (exe | zip), so the self-updater fetches the same format.
+       Empty for local builds, which do not update themselves. Set by the release workflow. -->
+  <ItemGroup>
+    <AssemblyMetadata Include="Distribution" Value="$(Distribution)" />
   </ItemGroup>
 
   <ItemGroup>
