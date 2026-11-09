@@ -7,6 +7,7 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        if (!Services.SingleInstance.Acquire(args)) return;
         Services.SelfUpdater.CleanUpOldVersion();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

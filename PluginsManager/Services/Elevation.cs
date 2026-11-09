@@ -41,7 +41,7 @@ public static class Elevation
             Verb = "runas",
             WorkingDirectory = Path.GetDirectoryName(exe)!,
         };
-        foreach (var arg in Environment.GetCommandLineArgs().Skip(1)) start.ArgumentList.Add(arg);
+        foreach (var arg in SingleInstance.ReplacementArgs()) start.ArgumentList.Add(arg);
         try
         {
             Process.Start(start);
