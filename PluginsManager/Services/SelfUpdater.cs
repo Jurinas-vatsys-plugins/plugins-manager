@@ -197,7 +197,7 @@ public static class SelfUpdater
     public static void Restart(string exePath)
     {
         var start = new ProcessStartInfo(exePath) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exePath)! };
-        foreach (var arg in Environment.GetCommandLineArgs().Skip(1)) start.ArgumentList.Add(arg);
+        foreach (var arg in SingleInstance.ReplacementArgs()) start.ArgumentList.Add(arg);
         Process.Start(start);
     }
 
